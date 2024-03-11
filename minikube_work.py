@@ -1,10 +1,11 @@
 from kubernetes import client, config
 import subprocess
 import random
+import paramiko
 import os
 
 
-def get_container_name(container_id):
+def get_container_name(container_id): #Получение имени по container_id
     command_name = ['docker', 'ps', '--filter', f'id={container_id}', '--format', '{{.Names}}'] #Получение имени по id
     names_result = subprocess.run(command_name, capture_output=True, text=True)
     if names_result.returncode != 0: #если не успешно
@@ -16,7 +17,7 @@ def get_container_name(container_id):
        container_name=random.choice(container_names)
        return container_name
 
-def get_container_pid(dict):
+def get_container_pid(dict): #Заполнение словаря pid
     for container_name in dict:
       command_pid = ['docker', 'inspect', '-f', '{{.State.Pid}}', container_name] #получение пид
       result_pid = subprocess.run(command_pid, capture_output=True) #создание процесса, вывод вкл, интерпрет в текст
@@ -25,6 +26,23 @@ def get_container_pid(dict):
       else:
           dict[container_name] = None #получение результата
 
+def connect_minikube_ssh(dict): #Оптимизировать для несколько node!!!
+   ssh = paramiko.SSHClient()
+   ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy()) # Добавление ключа хоста (для примера, пропускает проверку ключа)
+   # Подключение к Minikube по SSH
+   private_key_path = '/home/user/.minikube/machines/minikube/id_rsa' # Вызывается командой: minikube ssh-key
+   ip_adress_minikube = '192.168.59.100' # вызывается командой: minikube ip (вернет несколько ip, если несколько node)
+   username_minikube='docker'
+
+   ssh.connect(ip_adress_minikube, username=username_minikube, key_filename=private_key_path)
+   print('Connect ssh_Minikube:')
+   for value in dict.values():
+      stdin, stdout, stderr = ssh.exec_command(f'cat /proc/{value}/cgroup')
+      output = stdout.read().decode('utf-8')
+      print(output)
+      print('---------------------')
+   ssh.close()
+   #print('---------------------')
 
 config.load_kube_config()
 v1 = client.CoreV1Api()
@@ -68,3 +86,4 @@ for node in nodes:
 #print(Name_Pid)
 get_container_pid(Name_Pid) #Получение Pid по имени / Заполнение словаря
 print(Name_Pid)
+connect_minikube_ssh(Name_Pid)
