@@ -17,16 +17,19 @@ def get_container_name(container_id): #Получение имени по contai
        container_name=random.choice(container_names)
        return container_name
 
-def get_container_pid(dict): #Заполнение словаря pid
-    for container_name in dict:
-      command_pid = ['docker', 'inspect', '-f', '{{.State.Pid}}', container_name] #получение пид
-      result_pid = subprocess.run(command_pid, capture_output=True) #создание процесса, вывод вкл, интерпрет в текст
-      if result_pid.returncode == 0: #если успешно
-          dict[container_name] = result_pid.stdout.decode().strip() #получение результата
-      else:
-          dict[container_name] = None #получение результата
+def get_container_pid(dict_list):
+    for  dict in dict_list:
+      if "Name" in dict:
+        container_name = dict["Name"]
+        command_pid = ['docker', 'inspect', '-f', '{{.State.Pid}}', container_name]
+        result_pid = subprocess.run(command_pid, capture_output=True) #создание п>
+        if result_pid.returncode == 0: #если успешно
+            dict["Pid"] = result_pid.stdout.decode().strip() #получение 
+        else:
+            dict["Pid"] = None #получение результата
 
-def connect_minikube_ssh(dict): #Оптимизировать для несколько node!!!
+
+def connect_minikube_ssh(dict_list): #Оптимизировать для несколько node!!!
    ssh = paramiko.SSHClient()
    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy()) # Добавление ключа хоста (для примера, пропускает проверку ключа)
    # Подключение к Minikube по SSH
@@ -36,7 +39,8 @@ def connect_minikube_ssh(dict): #Оптимизировать для неско�
 
    ssh.connect(ip_adress_minikube, username=username_minikube, key_filename=private_key_path)
    print('Connect ssh_Minikube:')
-   for value in dict.values():
+   for dict in dict_list:
+      value = dict["Pid"]
       stdin, stdout, stderr = ssh.exec_command(f'cat /proc/{value}/cgroup')
       output = stdout.read().decode('utf-8')
       print(output)
@@ -44,31 +48,33 @@ def connect_minikube_ssh(dict): #Оптимизировать для неско�
    ssh.close()
    #print('---------------------')
 
+
+
 config.load_kube_config()
 v1 = client.CoreV1Api()
 
 nodes = v1.list_node().items
 containers = []
 kol =0
+dict_containers = {}
 Name_Pid = {}
-    # Выведите информацию о каждой ноде
+Name_Pid1={}
+    # Вывод информации о каждой ноде
 for node in nodes:
      print(f"Node Name: {node.metadata.name}")
-     # Дополнительная информация о ноде
      print(f"Node IP: {node.status.addresses[0].address}")
      print(f"Node OS: {node.status.node_info.operating_system}")
      node_name = node.metadata.name
-     #pods = v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node.metadata.name}").items
-     pods = v1.list_namespaced_pod(
-     namespace="default",
-     field_selector=f"spec.nodeName={node_name}" ).items
-
+     pods = v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node.metadata.name}").items
+     #pods = v1.list_namespaced_pod(
+     #namespace="default",
+     #field_selector=f"spec.nodeName={node_name}" ).items
+     dict_containers[node.metadata.name] = None
      for pod in pods:
             print(kol)
             kol +=1
             print(f"Pod Name: {pod.metadata.name}")  # Вывод имени пода
             print(f"Pod UID : {pod.metadata.uid}")  # Вывод идентификатора пода
-            containers.append(pod.metadata.name)
             container_statuses = pod.status.container_statuses
             if container_statuses:
                 for container_status in container_statuses:
@@ -81,9 +87,12 @@ for node in nodes:
             if container_name:
                #print(f"Name of container: {container_name}")
                Name_Pid[container_name]= None
+               Name_Pid1["Name"]= container_name
+               containers.append(Name_Pid1)
+               Name_Pid1 = {}
             print("-------------------------")
 
-#print(Name_Pid)
-get_container_pid(Name_Pid) #Получение Pid по имени / Заполнение словаря
-print(Name_Pid)
-connect_minikube_ssh(Name_Pid)
+#print(containers)
+get_container_pid(containers) #Получение Pid по имени / Заполнение словаря
+print(containers)
+connect_minikube_ssh(containers)
