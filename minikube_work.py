@@ -17,19 +17,26 @@ def get_container_name(container_id): #Получение имени по contai
        container_name=random.choice(container_names)
        return container_name
 
-def get_container_pid(dict_list):
+
+def prov(value, dict, name): #Проверка полученных метрик, значений
+        if value.returncode == 0: #если успешно
+            dict[name] = value.stdout.decode().strip() #присваиваем значения в словарь
+        else:
+            dict[name] = None #пустой результат
+
+def get_container_pid(dict_list): #Получение метрик из контейнеров (pid, overlay и т.п) 
     for  dict in dict_list:
       if "Name" in dict:
-        container_name = dict["Name"]
+        container_name = dict["Name"] #Получение Pid
         command_pid = ['docker', 'inspect', '-f', '{{.State.Pid}}', container_name]
-        result_pid = subprocess.run(command_pid, capture_output=True) #создание п>
-        if result_pid.returncode == 0: #если успешно
-            dict["Pid"] = result_pid.stdout.decode().strip() #получение 
-        else:
-            dict["Pid"] = None #получение результата
+        result_pid = subprocess.run(command_pid, capture_output=True) 
+        prov(result_pid,dict, "Pid")
+        command_overlay = ['docker', 'inspect', '-f', '{{.GraphDriver.Data.UpperDir}}', container_name] #Получение пути к верхнему слою
+        result_overlay = subprocess.run(command_overlay, capture_output=True) 
+        prov(result_overlay, dict, "Overlay")
 
 
-def connect_minikube_ssh(dict_list): #Оптимизировать для несколько node!!!
+def connect_minikube_ssh(dict_list): #Работа с minikube ssh (Оптимизировать для несколько node!!!)
    ssh = paramiko.SSHClient()
    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy()) # Добавление ключа хоста (для примера, пропускает проверку ключа)
    # Подключение к Minikube по SSH
@@ -45,22 +52,31 @@ def connect_minikube_ssh(dict_list): #Оптимизировать для нес
       output = stdout.read().decode('utf-8')
       print(output)
       print('---------------------')
+   get_files_count(ssh,dict_list)
    ssh.close()
-   #print('---------------------')
 
+
+def get_files_count(ssh, dict_list): #Вывод количества файлов и директорий в Overlay
+   for dict in dict_list:
+      value = dict["Overlay"]
+      stdin, stdout, stderr = ssh.exec_command(f"sudo su -c 'find {value} -type d -o -type f | wc -l'")
+      output = stdout.read().decode().strip()
+      count = int(output)
+      #print(count)
+      if (count > 10):
+         print(f"{dict['Name']} = {count}")
+      #print("------------")
 
 
 config.load_kube_config()
 v1 = client.CoreV1Api()
-
 nodes = v1.list_node().items
-containers = []
+containers = [] #Создание списка словарей для каждого контейнера
 kol =0
-dict_containers = {}
-Name_Pid = {}
-Name_Pid1={}
-    # Вывод информации о каждой ноде
-for node in nodes:
+dict_containers = {} # Конечный словарь, где ключ - node, а значения - список словарей (состоящих из метрик контейнеров)
+Name_Pid1={} #Вспомогательный словарь
+
+for node in nodes: # Вывод информации о каждой ноде
      print(f"Node Name: {node.metadata.name}")
      print(f"Node IP: {node.status.addresses[0].address}")
      print(f"Node OS: {node.status.node_info.operating_system}")
@@ -85,14 +101,11 @@ for node in nodes:
 
             container_name = get_container_name(str(container_id)) #Получение имени
             if container_name:
-               #print(f"Name of container: {container_name}")
-               Name_Pid[container_name]= None
                Name_Pid1["Name"]= container_name
                containers.append(Name_Pid1)
                Name_Pid1 = {}
             print("-------------------------")
 
-#print(containers)
 get_container_pid(containers) #Получение Pid по имени / Заполнение словаря
 print(containers)
-connect_minikube_ssh(containers)
+connect_minikube_ssh(containers) #работа в minikube ssh
