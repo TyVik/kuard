@@ -2,7 +2,17 @@ from kubernetes import client, config
 import subprocess
 import random
 import paramiko
+import telebot
 import os
+
+
+def alert_telegram(message):
+   token = '7034741381:AAGfECxVwQSId3tXlJCm4dBWoUSjI1_sc7o'
+   id = '1005425272'
+
+   bot = telebot.TeleBot(token=token)
+   bot.send_message(chat_id=id, text=message)
+   #bot.send_message(message.chat.id, text=message)
 
 
 def get_container_name(container_id): #Получение имени по container_id
@@ -65,7 +75,8 @@ def get_files_count(ssh, dict_list): #Вывод количества файло
       #print(count)
       if (count > 10):
          print(f"{dict['Name']} = {count}")
-      #print("------------")
+         alert_telegram(f"B {dict['Name']} большое колличество файлов! ({count})")
+      #print("Okkk")
 
 
 config.load_kube_config()
