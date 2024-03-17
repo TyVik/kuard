@@ -5,6 +5,7 @@ from kubernetes import client, config
 from kubernetes.client import V1Node, V1Pod
 from paramiko.client import SSHClient, AutoAddPolicy
 
+from kuard.alerts import notify
 from kuard.types import Pod, Container, Metrics
 
 config.load_kube_config()
@@ -70,6 +71,12 @@ def collect_metrics(ssh: SSHClient, inspect) -> Metrics:
     return result
 
 
+def check_rules(container: Container):
+    files_count = container["metrics"]["files_count"]
+    if files_count > 10:
+        notify(f"B {container['name']} большое количество файлов! ({files_count})")
+
+
 if __name__ == "__main__":
     nodes = get_nodes()
     state = {get_ip(node): get_pods(node) for node in nodes}
@@ -82,5 +89,6 @@ if __name__ == "__main__":
                 output = stdout.read().decode('utf-8')
                 container["inspect"] = json.loads(output)
                 container["metrics"] = collect_metrics(ssh, container["inspect"])
+                check_rules(container)
 
     print(json.dumps(state, indent=2))
