@@ -3,6 +3,7 @@ from typing import TypedDict
 
 class Metrics(TypedDict):
     files_count: int
+    CPU: float
 
 
 class Container(TypedDict):

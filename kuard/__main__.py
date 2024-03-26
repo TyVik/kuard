@@ -5,10 +5,11 @@ from kubernetes import client, config
 from kubernetes.client import V1Node, V1Pod
 from paramiko.client import SSHClient, AutoAddPolicy
 
-from alerts import notify
-from class_types import Pod, Container, Metrics
+from kuard.alerts import notify
+from kuard.class_types import Pod, Container, Metrics
 
 config.load_kube_config()
+#config.load_kube_config(config_file='/config')
 v1 = client.CoreV1Api()
 
 
@@ -66,8 +67,15 @@ def collect_metrics(ssh: SSHClient, inspect) -> Metrics:
         output = stdout.read().decode('utf-8')
         return int(output)
 
+    def get_cpu(ssh: SSHClient, container_id: str) -> int:
+        stdin, stdout, stderr = ssh.exec_command(f"docker stats --no-stream --format '{{{{.CPUPerc}}}}' {container_id}")
+        output = stdout.read().decode('utf-8').rstrip('%\n')
+        #print(output)
+        return float(output)
+
     result = {}
     result["files_count"] = get_files_count(ssh, inspect[0]["GraphDriver"]["Data"]["UpperDir"])
+    result["CPU"] = get_cpu(ssh, inspect[0]["Id"])
     return result
 
 
@@ -91,4 +99,4 @@ if __name__ == "__main__":
                 container["metrics"] = collect_metrics(ssh, container["inspect"])
                 check_rules(container)
 
-    #print(json.dumps(state, indent=2))
+    print(json.dumps(state, indent=2))
