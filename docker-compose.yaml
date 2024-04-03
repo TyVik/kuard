@@ -1,8 +1,9 @@
 version: '3'
 services:
-  service:
+  kuard:
     image: k8s_container_analysis
     env_file:
       - .env
     volumes:
-      - /home/user/.kube/config:/config:ro
+      - /home/tyvik/.kube/config:/root/.kube/config:ro
+    network_mode: host
