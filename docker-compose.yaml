@@ -5,5 +5,5 @@ services:
     env_file:
       - .env
     volumes:
-      - /home/tyvik/.kube/config:/root/.kube/config:ro
+      - /home/user/.kube/config:/root/.kube/config:ro
     network_mode: host

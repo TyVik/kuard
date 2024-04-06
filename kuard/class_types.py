@@ -4,6 +4,7 @@ from typing import TypedDict
 class Metrics(TypedDict):
     files_count: int
     CPU: float
+    memory: str
 
 
 class Container(TypedDict):
