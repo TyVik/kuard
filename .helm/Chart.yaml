@@ -1,0 +1,13 @@
+apiVersion: v2
+name: kuard
+version: 0.1.0
+description: Kubernetes DAST checker
+type: application
+sources:
+  - https://github.com/NagapetyanMargarita/Minikube_plugin
+maintainers:
+  - name: Margarita Nagapetyan
+  - name: Viktor Tyshchenko
+    email: kuard@tyvik.ru
+    url: https://tyvik.ru
+appVersion: 1.0.0

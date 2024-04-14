@@ -1,0 +1,5 @@
+schedule: "10 * * * *"
+image: kuard
+tag: "0.1.1"
+ip_ssh: ""
+config: ""
