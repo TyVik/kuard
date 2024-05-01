@@ -5,7 +5,8 @@ class Metrics(TypedDict):
     files_count: int
     CPU: float
     memory: str
-
+    files_SUID: str
+    files_executable: str
 
 class Container(TypedDict):
     id: str

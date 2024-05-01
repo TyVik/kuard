@@ -80,6 +80,17 @@ def collect_metrics(ssh: SSHClient, inspect) -> Metrics:
         output = stdout.read().decode('utf-8')
         return int(output)
 
+    def get_files_SUID(ssh: SSHClient) -> str:
+        stdin, stdout, stderr = ssh.exec_command(f"sudo su -c 'find / -type f -perm /4000")
+        output = stdout.read().decode('utf-8')
+        return str(output)
+
+    def get_files_executable(ssh: SSHClient, overlay: str) -> str:
+        stdin, stdout, stderr = ssh.exec_command(f"sudo su -c 'find {overlay} -type f -executable")
+        output = stdout.read().decode('utf-8')
+        return str(output)
+
+
     def get_cpu(ssh: SSHClient, container_id: str) -> int:
         stdin, stdout, stderr = ssh.exec_command(f"docker stats --no-stream --format '{{{{.CPUPerc}}}}' {container_id}")
         output = stdout.read().decode('utf-8').rstrip('%\n')
@@ -94,13 +105,21 @@ def collect_metrics(ssh: SSHClient, inspect) -> Metrics:
     result["files_count"] = get_files_count(ssh, inspect[0]["GraphDriver"]["Data"]["UpperDir"])
     result["CPU"] = get_cpu(ssh, inspect[0]["Id"])
     result["memory"] = get_memory(ssh, inspect[0]["Id"])
+    result["file_SUID"] = get_files_SUID(ssh)
+    result["files_executable"] = get_files_executable(ssh, inspect[0]["GraphDriver"]["Data"]["UpperDir"])
     return result
 
 
 def check_rules(container: Container):
     files_count = container["metrics"]["files_count"]
+    files_SUID = container["metrics"]["file_SUID"]
+    files_executable = container["metrics"]["files_executable"]
     if files_count > 10:
         notify(f"B {container['name']} большое количество файлов! ({files_count})")
+    if files_SUID != "":
+        notify(f"B {container['name']} присутствуют файлы SUID: ({files_SUID})")
+    if files_executable != "":
+        notify(f"B {container['name']} новые исполняемые файлы: ({files_executable})")
 
 
 if __name__ == "__main__":
@@ -120,6 +139,6 @@ if __name__ == "__main__":
                 output = stdout.read().decode('utf-8')
                 container["inspect"] = json.loads(output)
                 container["metrics"] = collect_metrics(ssh, container["inspect"])
-                check_rules(container)
+                #check_rules(container)
 
-    #print(json.dumps(state, indent=2))
+    print(json.dumps(state, indent=2))
