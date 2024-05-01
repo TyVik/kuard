@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kuard1
+spec:
+  schedule: "*/2 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          volumes:
+          - name: cluster-config
+            secret:
+              secretName: kuard-cluster-config
+          containers:
+          - name: kuard
+            image: kuard:0.1.1
+            env:
+              - name: IP_SSH
+                value: ""
+            volumeMounts:
+              - name: cluster-config
+                readOnly: true
+                mountPath: "/root/.kube"
+          restartPolicy: Never

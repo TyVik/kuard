@@ -1,24 +1,20 @@
 import json
-import subprocess
-import base64
+import logging
 import os
+import base64
 from kubernetes import client, config
 from kubernetes.client import V1Node, V1Pod
-import  paramiko
-import io
 import tempfile
-import re
 
-
-from paramiko import RSAKey
 from paramiko.client import SSHClient, AutoAddPolicy
-from dotenv import dotenv_values
 
 from kuard.alerts import notify
 from kuard.class_types import Pod, Container, Metrics
 
 config.load_kube_config()
 v1 = client.CoreV1Api()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def get_nodes() -> list[V1Node]:
@@ -56,16 +52,9 @@ def get_ip(node: V1Node) -> str:
     return internal.address
 
 
-#def get_ssh_to_node(ip: str) -> SSHClient:
-def get_ssh_to_node(ip: str, private_key_str:str) -> SSHClient:
-    def get_private_key_for_ip(ip) -> str:
-        command = ['minikube', 'ssh-key']
-        completed = subprocess.run(command, capture_output=True)
-        return completed.stdout.decode().strip()
-
+def get_ssh_to_node(ip: str, private_key_str: str) -> SSHClient:
     ssh = SSHClient()
     ssh.set_missing_host_key_policy(AutoAddPolicy())  # Добавление ключа хоста (для примера, пропускает проверку ключа)
-    #private_key_file = get_private_key_for_ip(ip)
 
     with tempfile.NamedTemporaryFile(delete=False) as key_file:
         key_file.write(private_key_str.encode())
@@ -124,17 +113,17 @@ def check_rules(container: Container):
 
 if __name__ == "__main__":
     nodes = get_nodes()
+    logger.info("We have %s nodes", len(nodes))
     state = {get_ip(node): get_pods(node) for node in nodes}
-    value = dotenv_values('.env').get('IP_SSH')
-    decoded = base64.b64decode(value).decode()
-    ips = json.loads(decoded)
-    for node, pods in state.items():
-        ip=list(ips.keys())[0]
-        ssh_key = ips[ip]
-        #ssh = get_ssh_to_node(node)
-        ssh = get_ssh_to_node(ip,ssh_key)
+    ssh_keys = json.loads(base64.b64decode(os.environ.get('IP_SSH')).decode())
+    logger.info("We have %s ssh keys", len(ssh_keys))
+    for ip, pods in state.items():
+        logger.info("We have %s pods on %s", len(pods), ip)
+        ssh_key = ssh_keys[ip]
+        ssh = get_ssh_to_node(ip, ssh_key)
         for pod in pods:
             for container in pod["containers"]:
+                logger.info("Inspect %s container on %s", container['id'], ip)
                 stdin, stdout, stderr = ssh.exec_command(f"docker inspect {container['id']}")
                 output = stdout.read().decode('utf-8')
                 container["inspect"] = json.loads(output)
