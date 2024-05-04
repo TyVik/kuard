@@ -5,7 +5,7 @@ import base64
 from kubernetes import client, config
 from kubernetes.client import V1Node, V1Pod
 import tempfile
-
+from typing import Union
 from paramiko.client import SSHClient, AutoAddPolicy
 
 from kuard.alerts import notify
@@ -64,38 +64,21 @@ def get_ssh_to_node(ip: str, private_key_str: str) -> SSHClient:
 
 
 def collect_metrics(ssh: SSHClient, inspect) -> Metrics:
-    def get_files_count(ssh: SSHClient, overlay: str) -> int:
-        stdin, stdout, stderr = ssh.exec_command(f"sudo su -c 'find {overlay} -type d -o -type f | wc -l'")
+
+    def get_metrics(ssh: SSHClient, command: str) -> Union[int,str]:
+        stdin, stdout, stderr = ssh.exec_command(command)
         output = stdout.read().decode('utf-8')
-        return int(output)
-
-    def get_files_SUID(ssh: SSHClient) -> str:
-        stdin, stdout, stderr = ssh.exec_command(f"sudo su -c 'find / -type f -perm /4000")
-        output = stdout.read().decode('utf-8')
-        return str(output)
-
-    def get_files_executable(ssh: SSHClient, overlay: str) -> str:
-        stdin, stdout, stderr = ssh.exec_command(f"sudo su -c 'find {overlay} -type f -executable")
-        output = stdout.read().decode('utf-8')
-        return str(output)
-
-
-    def get_cpu(ssh: SSHClient, container_id: str) -> int:
-        stdin, stdout, stderr = ssh.exec_command(f"docker stats --no-stream --format '{{{{.CPUPerc}}}}' {container_id}")
-        output = stdout.read().decode('utf-8').rstrip('%\n')
-        return float(output)
-
-    def get_memory(ssh: SSHClient, container_id: str) -> str:
-        stdin, stdout, stderr = ssh.exec_command(f"docker stats --no-stream --format '{{{{.MemUsage}}}}' {container_id}")
-        output = stdout.read().decode('utf-8').rstrip('%\n')
-        return str(output)
+        try:
+            return int(output)
+        except ValueError:
+            return str(output.rstrip('%\n'))
 
     result = {}
-    result["files_count"] = get_files_count(ssh, inspect[0]["GraphDriver"]["Data"]["UpperDir"])
-    result["CPU"] = get_cpu(ssh, inspect[0]["Id"])
-    result["memory"] = get_memory(ssh, inspect[0]["Id"])
-    result["file_SUID"] = get_files_SUID(ssh)
-    result["files_executable"] = get_files_executable(ssh, inspect[0]["GraphDriver"]["Data"]["UpperDir"])
+    result["files_count"] = get_metrics(ssh, f"sudo su -c 'find {inspect[0]['GraphDriver']['Data']['UpperDir']} -type d -o -type f | wc -l'")
+    result["memory"] = get_metrics(ssh, f"docker stats --no-stream --format '{{{{.MemUsage}}}}' {inspect[0]['Id']}")
+    result["CPU"] = get_metrics(ssh, f"docker stats --no-stream --format '{{{{.CPUPerc}}}}' {inspect[0]['Id']}")
+    result["file_SUID"] = get_metrics(ssh, f"sudo su -c 'find / -type f -perm /4000")
+    result["files_executable"] = get_metrics(ssh, f"sudo su -c 'find {inspect[0]['GraphDriver']['Data']['UpperDir']} -type f -executable" )
     return result
 
 
@@ -128,6 +111,6 @@ if __name__ == "__main__":
                 output = stdout.read().decode('utf-8')
                 container["inspect"] = json.loads(output)
                 container["metrics"] = collect_metrics(ssh, container["inspect"])
-                #check_rules(container)
+                check_rules(container)
 
     print(json.dumps(state, indent=2))
