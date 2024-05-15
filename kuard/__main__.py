@@ -77,7 +77,7 @@ def collect_metrics(ssh: SSHClient, inspect) -> Metrics:
     result["files_count"] = get_metrics(ssh, f"sudo su -c 'find {inspect[0]['GraphDriver']['Data']['UpperDir']} -type d -o -type f | wc -l'")
     result["memory"] = get_metrics(ssh, f"docker stats --no-stream --format '{{{{.MemUsage}}}}' {inspect[0]['Id']}")
     result["CPU"] = get_metrics(ssh, f"docker stats --no-stream --format '{{{{.CPUPerc}}}}' {inspect[0]['Id']}")
-    result["file_SUID"] = get_metrics(ssh, f"sudo su -c 'find / -type f -perm /4000")
+    result["file_SUID"] = get_metrics(ssh, f"sudo su -c 'find / -type f -perm /4000'")
     result["files_executable"] = get_metrics(ssh, f"sudo su -c 'find {inspect[0]['GraphDriver']['Data']['UpperDir']} -type f -executable" )
     return result
 
